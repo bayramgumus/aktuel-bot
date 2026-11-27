@@ -14,5 +14,12 @@
     "output_media/post_9.jpg",
     "output_media/post_10.jpg"
   ],
-  "story": "output_media/story.jpg"
+  "stories": [
+    "output_media/story_1.jpg",
+    "output_media/story_2.jpg",
+    "output_media/story_3.jpg",
+    "output_media/story_4.jpg",
+    "output_media/story_5.jpg"
+  ],
+  "story": "output_media/story_1.jpg"
 }
