@@ -90,7 +90,7 @@ def get_env_config():
     raw_base_url = (os.getenv("PUBLIC_MEDIA_BASE_URL") or "").strip().rstrip("/")
 
     if not raw_base_url and repo:
-        raw_base_url = f"https://raw.githubusercontent.com/{repo}/{branch}"
+        raw_base_url = f"https://raw.githubusercontent.com/{repo}/refs/heads/{branch}"
 
     return {
         "ig_user_id": ig_user_id,
