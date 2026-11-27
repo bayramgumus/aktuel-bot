@@ -14,7 +14,7 @@ CUSTOM_LOGO_PATH = "logo.png"
 POST_SIZE = (1080, 1350)   # 4:5 Dikey Post
 STORY_SIZE = (1080, 1920)  # 9:16 Hikaye
 
-BG_COLOR = (20, 22, 28)
+BG_COLOR = (255, 255, 255)   # Beyaz zemin
 
 HEADERS = {
     "User-Agent": (
@@ -67,9 +67,9 @@ def download_image(url, base_url="https://www.akakce.com/brosurler/"):
     return _fetch_single_image(full_url)
 
 
-def fit_brochure_to_canvas(brochure_img, canvas_w, canvas_h, margin=20):
-    avail_w = canvas_w - margin * 2
-    avail_h = canvas_h - margin * 2
+def fit_brochure_to_canvas(brochure_img, canvas_w, canvas_h, margin=0):
+    avail_w = max(1, canvas_w - margin * 2)
+    avail_h = max(1, canvas_h - margin * 2)
     ratio = min(avail_w / brochure_img.width, avail_h / brochure_img.height)
     new_w = max(1, int(brochure_img.width * ratio))
     new_h = max(1, int(brochure_img.height * ratio))
@@ -82,15 +82,15 @@ def draw_corner_brand_badge(canvas, is_story=False):
     if os.path.exists(CUSTOM_LOGO_PATH):
         try:
             logo = Image.open(CUSTOM_LOGO_PATH).convert("RGBA")
-            max_logo_w = 170 if is_story else 150
-            max_logo_h = 90 if is_story else 80
+            max_logo_w = 175 if is_story else 155
+            max_logo_h = 95 if is_story else 85
             ratio = min(max_logo_w / logo.width, max_logo_h / logo.height)
             logo = logo.resize(
                 (max(1, int(logo.width * ratio)), max(1, int(logo.height * ratio))),
                 Image.Resampling.LANCZOS,
             )
-            pad_x = 28
-            pad_y = 36 if is_story else 28
+            pad_x = 24
+            pad_y = 32 if is_story else 22
             pos_x = w - logo.width - pad_x
             pos_y = h - logo.height - pad_y
 
@@ -119,7 +119,7 @@ def draw_corner_brand_badge(canvas, is_story=False):
     box_h = text_h + py * 2
 
     margin_right = 24
-    margin_bottom = 36 if is_story else 24
+    margin_bottom = 32 if is_story else 22
 
     x1 = w - margin_right - box_w
     y1 = h - margin_bottom - box_h
@@ -129,11 +129,11 @@ def draw_corner_brand_badge(canvas, is_story=False):
     odraw.rounded_rectangle(
         [x1, y1, x2, y2],
         radius=14,
-        fill=(15, 23, 42, 205),
-        outline=(255, 255, 255, 55),
+        fill=(15, 23, 42, 215),
+        outline=(255, 255, 255, 70),
         width=1,
     )
-    odraw.text((x1 + px, y1 + py - 2), label, font=font, fill=(255, 255, 255, 240))
+    odraw.text((x1 + px, y1 + py - 2), label, font=font, fill=(255, 255, 255, 245))
 
     merged = Image.alpha_composite(canvas.convert("RGBA"), overlay)
     canvas.paste(merged.convert("RGB"), (0, 0))
@@ -142,7 +142,7 @@ def draw_corner_brand_badge(canvas, is_story=False):
 def compose_clean_canvas(brochure_img, size, is_story=False):
     w, h = size
     canvas = Image.new("RGB", (w, h), BG_COLOR)
-    fitted = fit_brochure_to_canvas(brochure_img, w, h, margin=20)
+    fitted = fit_brochure_to_canvas(brochure_img, w, h, margin=0)
     paste_x = (w - fitted.width) // 2
     paste_y = (h - fitted.height) // 2
     canvas.paste(fitted, (paste_x, paste_y))
