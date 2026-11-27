@@ -11,10 +11,11 @@ CURRENT_JOB_FILE = "current_job.json"
 OUTPUT_DIR = "output_media"
 CUSTOM_LOGO_PATH = "logo.png"
 
-POST_SIZE = (1080, 1350)   # 4:5 Dikey Post
-STORY_SIZE = (1080, 1920)  # 9:16 Hikaye
+POST_SIZE = (1080, 1350)    # 4:5 Dikey Post
+STORY_SIZE = (1080, 1920)   # 9:16 Hikaye
+MAX_STORY_PAGES = 5         # Hikayeye basılacak azami sayfa sayısı
 
-BG_COLOR = (255, 255, 255)   # Beyaz zemin
+BG_COLOR = (255, 255, 255)    # Beyaz zemin
 
 HEADERS = {
     "User-Agent": (
@@ -193,21 +194,25 @@ def run_design_factory():
         post_img.save(out_path, "JPEG", quality=95, subsampling=0, optimize=True)
         post_paths.append(out_path)
 
-    story_img = compose_clean_canvas(downloaded[0], STORY_SIZE, is_story=True)
-    story_path = os.path.join(OUTPUT_DIR, "story.jpg")
-    story_img.save(story_path, "JPEG", quality=95, subsampling=0, optimize=True)
+    story_paths = []
+    for idx, img in enumerate(downloaded[:MAX_STORY_PAGES], start=1):
+        story_img = compose_clean_canvas(img, STORY_SIZE, is_story=True)
+        story_path = os.path.join(OUTPUT_DIR, f"story_{idx}.jpg")
+        story_img.save(story_path, "JPEG", quality=95, subsampling=0, optimize=True)
+        story_paths.append(story_path)
 
     manifest = {
         "title": title,
         "duration": duration,
         "url": page_url,
         "posts": post_paths,
-        "story": story_path,
+        "stories": story_paths,
+        "story": story_paths[0] if story_paths else "",
     }
     with open(os.path.join(OUTPUT_DIR, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
 
-    print(f"[TASARIM] Hazır! {len(post_paths)} post görseli ve 1 hikaye görseli oluşturuldu.")
+    print(f"[TASARIM] Hazır! {len(post_paths)} post ve {len(story_paths)} hikaye görseli oluşturuldu.")
 
 
 if __name__ == "__main__":
