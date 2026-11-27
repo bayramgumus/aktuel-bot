@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 CURRENT_JOB_FILE = "current_job.json"
 OUTPUT_DIR = "output_media"
-CUSTOM_LOGO_PATH = "logo.png"  # İstersen repo köküne kendi şeffaf PNG logonu koyabilirsin
+CUSTOM_LOGO_PATH = "logo.png"
 
 POST_SIZE = (1080, 1350)   # 4:5 Dikey Post
 STORY_SIZE = (1080, 1920)  # 9:16 Hikaye
@@ -57,8 +57,7 @@ def download_image(url, base_url="https://www.akakce.com/brosurler/"):
     return img
 
 
-def fit_brochure_to_canvas(brochure_img, canvas_w, canvas_h, margin=24):
-    """Broşürün oranını bozmadan ekranda mümkün olan en geniş alana sığdırır."""
+def fit_brochure_to_canvas(brochure_img, canvas_w, canvas_h, margin=20):
     avail_w = canvas_w - margin * 2
     avail_h = canvas_h - margin * 2
     ratio = min(avail_w / brochure_img.width, avail_h / brochure_img.height)
@@ -68,10 +67,8 @@ def fit_brochure_to_canvas(brochure_img, canvas_w, canvas_h, margin=24):
 
 
 def draw_corner_brand_badge(canvas, is_story=False):
-    """Sağ alt köşeye küçük, broşürü kapatmayan Aktüel Kelebek logosu/etiketi ekler."""
     w, h = canvas.size
 
-    # Eğer repo kökünde özel logo.png varsa onu sağ alta küçültüp koyalım
     if os.path.exists(CUSTOM_LOGO_PATH):
         try:
             logo = Image.open(CUSTOM_LOGO_PATH).convert("RGBA")
@@ -95,7 +92,6 @@ def draw_corner_brand_badge(canvas, is_story=False):
         except Exception as e:
             print(f"[UYARI] Özel logo yüklenemedi, metin rozet kullanılacak: {e}")
 
-    # Varsayılan küçük ve zarif sağ alt rozet
     overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
     odraw = ImageDraw.Draw(overlay)
 
@@ -163,8 +159,13 @@ def run_design_factory():
     raw_images = job.get("images") or []
     page_url = job.get("url") or "https://www.akakce.com/brosurler/"
 
+    prioritized_images = sorted(
+        raw_images,
+        key=lambda u: (0 if "/_bro/" in str(u) else 1),
+    )
+
     downloaded = []
-    for img_url in raw_images[:10]:
+    for img_url in prioritized_images[:10]:
         try:
             img = download_image(img_url, page_url)
             downloaded.append(img)
