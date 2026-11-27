@@ -9,16 +9,12 @@ from PIL import Image, ImageDraw, ImageFont
 
 CURRENT_JOB_FILE = "current_job.json"
 OUTPUT_DIR = "output_media"
+CUSTOM_LOGO_PATH = "logo.png"  # İstersen repo köküne kendi şeffaf PNG logonu koyabilirsin
 
 POST_SIZE = (1080, 1350)   # 4:5 Dikey Post
 STORY_SIZE = (1080, 1920)  # 9:16 Hikaye
 
-BG_COLOR = (18, 20, 26)          # Koyu lacivert/antrasit zemin
-CARD_BG = (255, 255, 255)      # Broşür alanı arka planı
-ACCENT_COLOR = (239, 68, 68)   # Vurgu rengi (kırmızı/turuncu ton)
-BADGE_BG = (30, 41, 59)        # Üst/alt bilgi şeridi
-TEXT_LIGHT = (255, 255, 255)
-TEXT_MUTED = (203, 213, 225)
+BG_COLOR = (20, 22, 28)
 
 HEADERS = {
     "User-Agent": (
@@ -56,154 +52,95 @@ def download_image(url, base_url="https://www.akakce.com/brosurler/"):
     resp = requests.get(full_url, headers=HEADERS, timeout=20)
     resp.raise_for_status()
     img = Image.open(io.BytesIO(resp.content)).convert("RGB")
-    # Çok küçük ikon/piksel görselleri ele
-    if img.width < 200 or img.height < 200:
+    if img.width < 220 or img.height < 220:
         raise ValueError(f"Görsel çok küçük ({img.width}x{img.height}), atlandı.")
     return img
 
 
-def fit_image_inside(img, box_w, box_h):
-    ratio = min(box_w / img.width, box_h / img.height)
-    new_w = max(1, int(img.width * ratio))
-    new_h = max(1, int(img.height * ratio))
-    return img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+def fit_brochure_to_canvas(brochure_img, canvas_w, canvas_h, margin=24):
+    """Broşürün oranını bozmadan ekranda mümkün olan en geniş alana sığdırır."""
+    avail_w = canvas_w - margin * 2
+    avail_h = canvas_h - margin * 2
+    ratio = min(avail_w / brochure_img.width, avail_h / brochure_img.height)
+    new_w = max(1, int(brochure_img.width * ratio))
+    new_h = max(1, int(brochure_img.height * ratio))
+    return brochure_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
 
-def draw_centered_text(draw, text, y, font, fill, max_width):
-    # Metni gerekirse iki satıra böl
-    words = text.split()
-    lines = []
-    current = ""
-    for w in words:
-        trial = f"{current} {w}".strip()
-        bbox = draw.textbbox((0, 0), trial, font=font)
-        if (bbox[2] - bbox[0]) <= max_width:
-            current = trial
-        else:
-            if current:
-                lines.append(current)
-            current = w
-            if len(lines) == 2:
-                break
-    if current and len(lines) < 2:
-        lines.append(current)
+def draw_corner_brand_badge(canvas, is_story=False):
+    """Sağ alt köşeye küçük, broşürü kapatmayan Aktüel Kelebek logosu/etiketi ekler."""
+    w, h = canvas.size
 
-    for idx, line in enumerate(lines):
-        bbox = draw.textbbox((0, 0), line, font=font)
-        w = bbox[2] - bbox[0]
-        h = bbox[3] - bbox[1]
-        x = (POST_SIZE[0] - w) // 2 if font.size < 90 else (draw._image.width - w) // 2
-        draw.text((x, y + idx * (h + 8)), line, font=font, fill=fill)
+    # Eğer repo kökünde özel logo.png varsa onu sağ alta küçültüp koyalım
+    if os.path.exists(CUSTOM_LOGO_PATH):
+        try:
+            logo = Image.open(CUSTOM_LOGO_PATH).convert("RGBA")
+            max_logo_w = 170 if is_story else 150
+            max_logo_h = 90 if is_story else 80
+            ratio = min(max_logo_w / logo.width, max_logo_h / logo.height)
+            logo = logo.resize(
+                (max(1, int(logo.width * ratio)), max(1, int(logo.height * ratio))),
+                Image.Resampling.LANCZOS,
+            )
+            pad_x = 28
+            pad_y = 36 if is_story else 28
+            pos_x = w - logo.width - pad_x
+            pos_y = h - logo.height - pad_y
 
+            overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+            overlay.paste(logo, (pos_x, pos_y), logo)
+            merged = Image.alpha_composite(canvas.convert("RGBA"), overlay)
+            canvas.paste(merged.convert("RGB"), (0, 0))
+            return
+        except Exception as e:
+            print(f"[UYARI] Özel logo yüklenemedi, metin rozet kullanılacak: {e}")
 
-def build_post_image(brochure_img, title, duration, page_idx, total_pages):
-    w, h = POST_SIZE
-    canvas = Image.new("RGB", (w, h), BG_COLOR)
-    draw = ImageDraw.Draw(canvas)
+    # Varsayılan küçük ve zarif sağ alt rozet
+    overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    odraw = ImageDraw.Draw(overlay)
 
-    header_h = 150
-    footer_h = 120
-    pad = 28
+    font_size = 22 if is_story else 20
+    font = get_font(font_size, bold=True)
+    label = "Aktüel Kelebek"
 
-    # Üst şerit
-    draw.rectangle([0, 0, w, header_h], fill=BADGE_BG)
-    draw.rectangle([0, header_h - 6, w, header_h], fill=ACCENT_COLOR)
+    bbox = odraw.textbbox((0, 0), label, font=font)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
 
-    title_font = get_font(36, bold=True)
-    sub_font = get_font(24, bold=False)
+    px = 18
+    py = 10
+    box_w = text_w + px * 2
+    box_h = text_h + py * 2
 
-    draw_centered_text(draw, title, 22, title_font, TEXT_LIGHT, w - 80)
+    margin_right = 24
+    margin_bottom = 36 if is_story else 24
 
-    sub_text = duration if duration else "Güncel Kampanya & Aktüel Fırsat"
-    if total_pages > 1:
-        sub_text = f"{sub_text}  •  Sayfa {page_idx}/{total_pages}"
-    draw_centered_text(draw, sub_text, 98, sub_font, TEXT_MUTED, w - 80)
+    x1 = w - margin_right - box_w
+    y1 = h - margin_bottom - box_h
+    x2 = w - margin_right
+    y2 = h - margin_bottom
 
-    # Orta broşür alanı
-    avail_w = w - pad * 2
-    avail_h = h - header_h - footer_h - pad * 2
-    box_x = pad
-    box_y = header_h + pad
-
-    draw.rounded_rectangle(
-        [box_x, box_y, box_x + avail_w, box_y + avail_h],
-        radius=20,
-        fill=CARD_BG,
+    odraw.rounded_rectangle(
+        [x1, y1, x2, y2],
+        radius=14,
+        fill=(15, 23, 42, 205),
+        outline=(255, 255, 255, 55),
+        width=1,
     )
+    odraw.text((x1 + px, y1 + py - 2), label, font=font, fill=(255, 255, 255, 240))
 
-    fitted = fit_image_inside(brochure_img, avail_w - 24, avail_h - 24)
-    paste_x = box_x + (avail_w - fitted.width) // 2
-    paste_y = box_y + (avail_h - fitted.height) // 2
-    canvas.paste(fitted, (paste_x, paste_y))
-
-    # Alt şerit
-    draw.rectangle([0, h - footer_h, w, h], fill=BADGE_BG)
-    footer_text = "Kaydetmeyi unutma • Yeni kataloglar her saat başı"
-    draw_centered_text(draw, footer_text, h - footer_h + 38, sub_font, TEXT_LIGHT, w - 80)
-
-    return canvas
+    merged = Image.alpha_composite(canvas.convert("RGBA"), overlay)
+    canvas.paste(merged.convert("RGB"), (0, 0))
 
 
-def build_story_image(brochure_img, title, duration):
-    w, h = STORY_SIZE
+def compose_clean_canvas(brochure_img, size, is_story=False):
+    w, h = size
     canvas = Image.new("RGB", (w, h), BG_COLOR)
-    draw = ImageDraw.Draw(canvas)
-
-    top_h = 220
-    bottom_h = 210
-    pad = 32
-
-    # Üst alan
-    draw.rectangle([0, 0, w, top_h], fill=BADGE_BG)
-    draw.rectangle([0, top_h - 8, w, top_h], fill=ACCENT_COLOR)
-
-    tag_font = get_font(26, bold=True)
-    title_font = get_font(42, bold=True)
-    sub_font = get_font(28, bold=False)
-
-    tag_text = "YENİ AKTÜEL BROŞÜR"
-    bbox = draw.textbbox((0, 0), tag_text, font=tag_font)
-    tag_w = bbox[2] - bbox[0] + 36
-    tag_x = (w - tag_w) // 2
-    draw.rounded_rectangle([tag_x, 24, tag_x + tag_w, 72], radius=16, fill=ACCENT_COLOR)
-    draw.text((tag_x + 18, 31), tag_text, font=tag_font, fill=TEXT_LIGHT)
-
-    # Başlığı ortala
-    words = title.split()
-    short_title = " ".join(words[:7]) if len(words) > 7 else title
-    bbox_t = draw.textbbox((0, 0), short_title, font=title_font)
-    tw = bbox_t[2] - bbox_t[0]
-    draw.text(((w - tw) // 2, 105), short_title, font=title_font, fill=TEXT_LIGHT)
-
-    if duration:
-        bbox_d = draw.textbbox((0, 0), duration, font=sub_font)
-        dw = bbox_d[2] - bbox_d[0]
-        draw.text(((w - dw) // 2, 165), duration, font=sub_font, fill=TEXT_MUTED)
-
-    # Orta hikaye görseli
-    avail_w = w - pad * 2
-    avail_h = h - top_h - bottom_h - pad * 2
-    box_x = pad
-    box_y = top_h + pad
-
-    draw.rounded_rectangle(
-        [box_x, box_y, box_x + avail_w, box_y + avail_h],
-        radius=24,
-        fill=CARD_BG,
-    )
-
-    fitted = fit_image_inside(brochure_img, avail_w - 28, avail_h - 28)
-    paste_x = box_x + (avail_w - fitted.width) // 2
-    paste_y = box_y + (avail_h - fitted.height) // 2
+    fitted = fit_brochure_to_canvas(brochure_img, w, h, margin=20)
+    paste_x = (w - fitted.width) // 2
+    paste_y = (h - fitted.height) // 2
     canvas.paste(fitted, (paste_x, paste_y))
-
-    # Alt alan
-    draw.rectangle([0, h - bottom_h, w, h], fill=BADGE_BG)
-    info_line = "Detaylar ve sayfalar az önce paylaşılan postta"
-    bbox_i = draw.textbbox((0, 0), info_line, font=sub_font)
-    iw = bbox_i[2] - bbox_i[0]
-    draw.text(((w - iw) // 2, h - bottom_h + 75), info_line, font=sub_font, fill=TEXT_LIGHT)
-
+    draw_corner_brand_badge(canvas, is_story=is_story)
     return canvas
 
 
@@ -216,7 +153,6 @@ def run_design_factory():
         job = json.load(f)
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    # Önceki çıktıları temizle
     for fname in os.listdir(OUTPUT_DIR):
         fpath = os.path.join(OUTPUT_DIR, fname)
         if os.path.isfile(fpath):
@@ -228,7 +164,6 @@ def run_design_factory():
     page_url = job.get("url") or "https://www.akakce.com/brosurler/"
 
     downloaded = []
-    # Instagram carousel üst sınırı 10 görsel; en fazla 10 sayfa işleyelim
     for img_url in raw_images[:10]:
         try:
             img = download_image(img_url, page_url)
@@ -237,24 +172,19 @@ def run_design_factory():
             print(f"[UYARI] Görsel indirilemedi ({img_url}): {e}")
 
     if not downloaded:
-        print("[TASARIM] Geçerli broşür görseli bulunamadı; metin kapak kartı üretiliyor.")
-        fallback = Image.new("RGB", (900, 1200), (241, 245, 249))
-        fdraw = ImageDraw.Draw(fallback)
-        ffont = get_font(44, bold=True)
-        fdraw.text((80, 520), title[:36], font=ffont, fill=(15, 23, 42))
-        downloaded.append(fallback)
+        print("[TASARIM] İndirilebilir geçerli görsel bulunamadı; üretim atlandı.")
+        return
 
-    total = len(downloaded)
     post_paths = []
     for idx, img in enumerate(downloaded, start=1):
-        post_img = build_post_image(img, title, duration, idx, total)
+        post_img = compose_clean_canvas(img, POST_SIZE, is_story=False)
         out_path = os.path.join(OUTPUT_DIR, f"post_{idx}.jpg")
-        post_img.save(out_path, "JPEG", quality=90, optimize=True)
+        post_img.save(out_path, "JPEG", quality=92, optimize=True)
         post_paths.append(out_path)
 
-    story_img = build_story_image(downloaded[0], title, duration)
+    story_img = compose_clean_canvas(downloaded[0], STORY_SIZE, is_story=True)
     story_path = os.path.join(OUTPUT_DIR, "story.jpg")
-    story_img.save(story_path, "JPEG", quality=90, optimize=True)
+    story_img.save(story_path, "JPEG", quality=92, optimize=True)
 
     manifest = {
         "title": title,
