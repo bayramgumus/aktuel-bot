@@ -47,14 +47,24 @@ def clean_title(raw_title):
     return text[:70] if text else "Güncel Aktüel Broşür"
 
 
-def download_image(url, base_url="https://www.akakce.com/brosurler/"):
-    full_url = urljoin(base_url, url)
+def _fetch_single_image(full_url):
     resp = requests.get(full_url, headers=HEADERS, timeout=20)
     resp.raise_for_status()
     img = Image.open(io.BytesIO(resp.content)).convert("RGB")
     if img.width < 220 or img.height < 220:
         raise ValueError(f"Görsel çok küçük ({img.width}x{img.height}), atlandı.")
     return img
+
+
+def download_image(url, base_url="https://www.akakce.com/brosurler/"):
+    full_url = urljoin(base_url, url)
+    if "/_bro/y/" in full_url:
+        hq_url = full_url.replace("/_bro/y/", "/_bro/u/")
+        try:
+            return _fetch_single_image(hq_url)
+        except Exception as e:
+            print(f"[UYARI] Yüksek kaliteli sürüm alınamadı ({hq_url}), yedek deneniyor: {e}")
+    return _fetch_single_image(full_url)
 
 
 def fit_brochure_to_canvas(brochure_img, canvas_w, canvas_h, margin=20):
@@ -180,12 +190,12 @@ def run_design_factory():
     for idx, img in enumerate(downloaded, start=1):
         post_img = compose_clean_canvas(img, POST_SIZE, is_story=False)
         out_path = os.path.join(OUTPUT_DIR, f"post_{idx}.jpg")
-        post_img.save(out_path, "JPEG", quality=92, optimize=True)
+        post_img.save(out_path, "JPEG", quality=95, subsampling=0, optimize=True)
         post_paths.append(out_path)
 
     story_img = compose_clean_canvas(downloaded[0], STORY_SIZE, is_story=True)
     story_path = os.path.join(OUTPUT_DIR, "story.jpg")
-    story_img.save(story_path, "JPEG", quality=92, optimize=True)
+    story_img.save(story_path, "JPEG", quality=95, subsampling=0, optimize=True)
 
     manifest = {
         "title": title,
