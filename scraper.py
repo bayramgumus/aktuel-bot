@@ -108,17 +108,15 @@ def pick_best_from_srcset(srcset_val):
     parts = [p.strip() for p in srcset_val.split(",") if p.strip()]
     if not parts:
         return ""
-    # Genelde en sonda veya en yüksek genişlikte olanı al
-    last_url = parts[-1].split()[0].strip()
-    return last_url
+    return parts[-1].split()[0].strip()
 
 
 def extract_brochure_images(detail_html, page_url):
     soup = BeautifulSoup(detail_html, "html.parser")
-    images = []
+    brochure_pages = []
+    other_images = []
     seen_img = set()
 
-    # Önce broşür/katalog/sayfa içeren img ve meta etiketlerine bakalım
     for img in soup.find_all("img"):
         srcset = img.get("data-srcset") or img.get("srcset") or ""
         src = (
@@ -134,7 +132,7 @@ def extract_brochure_images(detail_html, page_url):
         if not src and srcset:
             src = pick_best_from_srcset(srcset)
 
-        if not src or src.startswith("data:image"):
+        if not src or src.startswith("data:image") or "t.gif" in src:
             continue
 
         full_img = urljoin(page_url, src)
@@ -143,7 +141,6 @@ def extract_brochure_images(detail_html, page_url):
         if any(skip in lower for skip in SKIP_KEYWORDS):
             continue
 
-        # HTML width/height attribute verilmişse çok küçük ikonları ele
         w_attr = img.get("width")
         h_attr = img.get("height")
         try:
@@ -156,9 +153,13 @@ def extract_brochure_images(detail_html, page_url):
 
         if full_img not in seen_img:
             seen_img.add(full_img)
-            images.append(full_img)
+            if "/_bro/" in full_img:
+                brochure_pages.append(full_img)
+            else:
+                other_images.append(full_img)
 
-    # Eğer hiç img bulunamazsa og:image yedeğine bak
+    images = brochure_pages + other_images
+
     if not images:
         og = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
         if og and og.get("content"):
@@ -199,7 +200,6 @@ def run_scraper():
         except Exception as e:
             print(f"[UYARI] Detay sayfası okunamadı ({url}): {e}")
 
-        # Görseli hiç olmayan boş kartları kuyruğa yığmamak için kontrol
         if not images:
             print(f"[ATLANDI] Görsel bulunamadı: {item['title']} ({url})")
             continue
