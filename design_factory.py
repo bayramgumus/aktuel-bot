@@ -82,17 +82,17 @@ def draw_corner_brand_badge(canvas, is_story=False):
     if os.path.exists(CUSTOM_LOGO_PATH):
         try:
             logo = Image.open(CUSTOM_LOGO_PATH).convert("RGBA")
-            max_logo_w = 175 if is_story else 155
-            max_logo_h = 95 if is_story else 85
+            max_logo_w = 165 if is_story else 145
+            max_logo_h = 90 if is_story else 80
             ratio = min(max_logo_w / logo.width, max_logo_h / logo.height)
             logo = logo.resize(
                 (max(1, int(logo.width * ratio)), max(1, int(logo.height * ratio))),
                 Image.Resampling.LANCZOS,
             )
-            pad_x = 24
-            pad_y = 32 if is_story else 22
-            pos_x = w - logo.width - pad_x
-            pos_y = h - logo.height - pad_y
+            pad_x = 12
+            pad_y = 20 if is_story else 12
+            pos_x = max(0, w - logo.width - pad_x)
+            pos_y = max(0, h - logo.height - pad_y)
 
             overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
             overlay.paste(logo, (pos_x, pos_y), logo)
@@ -113,13 +113,13 @@ def draw_corner_brand_badge(canvas, is_story=False):
     text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]
 
-    px = 18
-    py = 10
+    px = 16
+    py = 9
     box_w = text_w + px * 2
     box_h = text_h + py * 2
 
-    margin_right = 24
-    margin_bottom = 32 if is_story else 22
+    margin_right = 12
+    margin_bottom = 20 if is_story else 12
 
     x1 = w - margin_right - box_w
     y1 = h - margin_bottom - box_h
