@@ -14,6 +14,7 @@ QUEUE_FILE = "queue.json"
 
 GRAPH_API_VERSION = "v21.0"
 GRAPH_BASE_URL = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
+STORY_PUBLISH_DELAY_SEC = 3
 
 BASE_DISCOVERY_TAGS = [
     "#aktüelürünler",
@@ -300,6 +301,18 @@ def advance_queue_after_success():
             print(f"[KUYRUK] Sıradaki iş yüklendi: {next_job.get('title', 'Broşür')}")
 
 
+def get_story_files(manifest):
+    raw_stories = manifest.get("stories")
+    if isinstance(raw_stories, list) and raw_stories:
+        return [p for p in raw_stories if p and os.path.exists(p)]
+
+    single_story = manifest.get("story")
+    if single_story and os.path.exists(single_story):
+        return [single_story]
+
+    return []
+
+
 def run_publisher():
     if not os.path.exists(MANIFEST_FILE):
         print("[YAYINCI] 'output_media/manifest.json' bulunamadı; paylaşım atlandı.")
@@ -309,9 +322,9 @@ def run_publisher():
         manifest = json.load(f)
 
     post_files = [p for p in (manifest.get("posts") or []) if os.path.exists(p)]
-    story_file = manifest.get("story") if manifest.get("story") and os.path.exists(manifest.get("story")) else ""
+    story_files = get_story_files(manifest)
 
-    if not post_files and not story_file:
+    if not post_files and not story_files:
         print("[YAYINCI] Paylaşılacak görsel bulunamadı.")
         return
 
@@ -338,10 +351,13 @@ def run_publisher():
         media_id = publish_carousel(cfg["ig_user_id"], cfg["ig_access_token"], post_urls, caption)
         print(f"[YAYINCI] Karusel gönderi ({len(post_urls)} görsel) yayınlandı. Media ID: {media_id}")
 
-    if story_file:
+    total_stories = len(story_files)
+    for idx, story_file in enumerate(story_files, start=1):
         story_url = to_public_media_url(story_file, cfg["media_base_url"])
         story_media_id = publish_story(cfg["ig_user_id"], cfg["ig_access_token"], story_url)
-        print(f"[YAYINCI] Hikaye yayınlandı. Story ID: {story_media_id}")
+        print(f"[YAYINCI] Hikaye {idx}/{total_stories} yayınlandı. Story ID: {story_media_id}")
+        if idx < total_stories:
+            time.sleep(STORY_PUBLISH_DELAY_SEC)
 
     advance_queue_after_success()
 
