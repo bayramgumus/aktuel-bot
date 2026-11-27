@@ -111,6 +111,11 @@ def pick_best_from_srcset(srcset_val):
     return parts[-1].split()[0].strip()
 
 
+def upgrade_to_hq_brochure_url(url):
+    """/_bro/y/ önizleme yolunu yüksek kaliteli /_bro/u/ yoluna çevirir."""
+    return url.replace("/_bro/y/", "/_bro/u/")
+
+
 def extract_brochure_images(detail_html, page_url):
     soup = BeautifulSoup(detail_html, "html.parser")
     brochure_pages = []
@@ -151,6 +156,9 @@ def extract_brochure_images(detail_html, page_url):
         except Exception:
             pass
 
+        if "/_bro/y/" in full_img:
+            full_img = upgrade_to_hq_brochure_url(full_img)
+
         if full_img not in seen_img:
             seen_img.add(full_img)
             if "/_bro/" in full_img:
@@ -164,6 +172,8 @@ def extract_brochure_images(detail_html, page_url):
         og = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
         if og and og.get("content"):
             og_url = urljoin(page_url, og["content"].strip())
+            if "/_bro/y/" in og_url:
+                og_url = upgrade_to_hq_brochure_url(og_url)
             if not any(skip in og_url.lower() for skip in SKIP_KEYWORDS):
                 images.append(og_url)
 
